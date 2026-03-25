@@ -3,6 +3,7 @@
 use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Symbol, Vec};
 
 mod nebula_explorer;
+mod player_profile;
 mod resource_minter;
 mod ship_nft;
 mod ship_registry;
@@ -16,6 +17,7 @@ pub use resource_minter::{
     HarvestedResource, Resource,
 };
 pub use ship_nft::{ShipError, ShipNft};
+pub use player_profile::{PlayerProfile, ProfileError, ProgressUpdate};
 pub use ship_registry::Ship;
 
 #[contract]
@@ -118,5 +120,36 @@ impl NebulaNomadContract {
     ) -> Result<DexOffer, HarvestError> {
         resource_minter::auto_list_on_dex(&env, &resource, min_price)
     }
-}
 
+    // ─── Player Profile ───────────────────────────────────────────────────────
+
+    /// Create a new on-chain player profile. Returns the assigned profile ID.
+    pub fn initialize_profile(env: Env, owner: Address) -> Result<u64, ProfileError> {
+        player_profile::initialize_profile(&env, owner)
+    }
+
+    /// Update scan count and essence earned after a harvest. Owner-only.
+    pub fn update_progress(
+        env: Env,
+        caller: Address,
+        profile_id: u64,
+        scan_count: u32,
+        essence: i128,
+    ) -> Result<(), ProfileError> {
+        player_profile::update_progress(&env, caller, profile_id, scan_count, essence)
+    }
+
+    /// Apply up to 5 stat updates in a single transaction for multi-scan runs.
+    pub fn batch_update_progress(
+        env: Env,
+        caller: Address,
+        updates: Vec<ProgressUpdate>,
+    ) -> Result<(), ProfileError> {
+        player_profile::batch_update_progress(&env, caller, updates)
+    }
+
+    /// Retrieve a player profile by ID.
+    pub fn get_profile(env: Env, profile_id: u64) -> Result<PlayerProfile, ProfileError> {
+        player_profile::get_profile(&env, profile_id)
+    }
+}

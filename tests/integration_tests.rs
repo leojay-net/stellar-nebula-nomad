@@ -3,8 +3,8 @@
 use soroban_sdk::testutils::{Address as _, Events, Ledger, LedgerInfo};
 use soroban_sdk::{vec, Address, Bytes, BytesN, Env, Symbol, Vec};
 use stellar_nebula_nomad::{
-    CellType, NebulaNomadContract, NebulaNomadContractClient, NebulaCell,
-    NebulaLayout, Rarity, ShipError, GRID_SIZE, TOTAL_CELLS,
+    CellType, NebulaNomadContract, NebulaNomadContractClient, NebulaCell, NebulaLayout,
+    ProfileError, ProgressUpdate, Rarity, ShipError, GRID_SIZE, TOTAL_CELLS,
 };
 
 use proptest::prelude::*;
@@ -281,6 +281,7 @@ fn test_scan_nebula_consistency_with_individual_calls() {
     assert_eq!(rarity, scan_rarity);
 }
 
+<<<<<<< HEAD
 use stellar_nebula_nomad::resource_minter::{
     ResourceError, ResourceMinter, ResourceMinterClient, ResourceType, LEDGERS_PER_DAY,
 };
@@ -655,3 +656,111 @@ fn test_double_init_rejected() {
     );
     assert_eq!(err, Err(Ok(ResourceError::AlreadyInitialized)));
 }
+=======
+// ─── player profile (issue #15) ───────────────────────────────────────────────
+
+#[test]
+fn test_initialize_profile_success() {
+    let (env, client, player) = setup_env();
+    let id = client.initialize_profile(&player);
+    assert_eq!(id, 1);
+}
+
+#[test]
+fn test_initialize_profile_increments_id() {
+    let (env, client, _) = setup_env();
+    let player_a = Address::generate(&env);
+    let player_b = Address::generate(&env);
+    let id_a = client.initialize_profile(&player_a);
+    let id_b = client.initialize_profile(&player_b);
+    assert_eq!(id_a, 1);
+    assert_eq!(id_b, 2);
+}
+
+#[test]
+#[should_panic]
+fn test_initialize_profile_duplicate_panics() {
+    let (env, client, player) = setup_env();
+    client.initialize_profile(&player);
+    client.initialize_profile(&player);
+}
+
+#[test]
+fn test_get_profile_returns_correct_owner() {
+    let (env, client, player) = setup_env();
+    let id = client.initialize_profile(&player);
+    let profile = client.get_profile(&id);
+    assert_eq!(profile.owner, player);
+    assert_eq!(profile.total_scans, 0);
+    assert_eq!(profile.essence_earned, 0);
+}
+
+#[test]
+#[should_panic]
+fn test_get_profile_not_found_panics() {
+    let (_env, client, _) = setup_env();
+    client.get_profile(&999u64);
+}
+
+#[test]
+fn test_update_progress_accumulates_stats() {
+    let (env, client, player) = setup_env();
+    let id = client.initialize_profile(&player);
+    client.update_progress(&player, &id, &3u32, &500i128);
+    client.update_progress(&player, &id, &2u32, &250i128);
+    let profile = client.get_profile(&id);
+    assert_eq!(profile.total_scans, 5);
+    assert_eq!(profile.essence_earned, 750);
+}
+
+#[test]
+#[should_panic]
+fn test_update_progress_wrong_caller_panics() {
+    let (env, client, player) = setup_env();
+    let intruder = Address::generate(&env);
+    let id = client.initialize_profile(&player);
+    client.update_progress(&intruder, &id, &1u32, &100i128);
+}
+
+#[test]
+fn test_batch_update_progress_applies_all() {
+    let (env, client, player) = setup_env();
+    let id = client.initialize_profile(&player);
+    let updates = soroban_sdk::vec![
+        &env,
+        ProgressUpdate { profile_id: id, scan_count: 1, essence: 100 },
+        ProgressUpdate { profile_id: id, scan_count: 2, essence: 200 },
+        ProgressUpdate { profile_id: id, scan_count: 1, essence: 50  },
+    ];
+    client.batch_update_progress(&player, &updates);
+    let profile = client.get_profile(&id);
+    assert_eq!(profile.total_scans, 4);
+    assert_eq!(profile.essence_earned, 350);
+}
+
+#[test]
+#[should_panic]
+fn test_batch_update_exceeds_limit_panics() {
+    let (env, client, player) = setup_env();
+    let id = client.initialize_profile(&player);
+    let updates = soroban_sdk::vec![
+        &env,
+        ProgressUpdate { profile_id: id, scan_count: 1, essence: 10 },
+        ProgressUpdate { profile_id: id, scan_count: 1, essence: 10 },
+        ProgressUpdate { profile_id: id, scan_count: 1, essence: 10 },
+        ProgressUpdate { profile_id: id, scan_count: 1, essence: 10 },
+        ProgressUpdate { profile_id: id, scan_count: 1, essence: 10 },
+        ProgressUpdate { profile_id: id, scan_count: 1, essence: 10 },
+    ];
+    client.batch_update_progress(&player, &updates);
+}
+
+#[test]
+fn test_profile_emits_nomad_joined_event() {
+    let (env, client, player) = setup_env();
+    client.initialize_profile(&player);
+    let events = env.events().all();
+    assert!(!events.is_empty());
+}
+
+>>>>>>> 2313d34 (feat: implement player profile and progress tracker)
