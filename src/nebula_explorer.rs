@@ -25,6 +25,7 @@ pub struct NebulaCell {
     pub energy: u32,
 }
 
+/// Placeholder for nebula scan result (see issue #1).
 #[derive(Clone)]
 #[contracttype]
 pub struct NebulaLayout {

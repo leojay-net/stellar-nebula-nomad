@@ -42,10 +42,20 @@
   - Level-based progression system
   - Unique ship metadata storage
 
+- **Nomad Bonding Contract**
+  - `create_bond()`: Form a multi-sig cooperative bond between two players
+  - `accept_bond()`: Partner confirms the bond (Pending → Active)
+  - `delegate_yield()`: Share a percentage of cosmic essence with bonded partner
+  - `claim_yield()`: Beneficiary claims their delegated yield share
+  - `dissolve_bond()`: Either party can end the bond
+  - Full security: only bonded addresses can interact
+  - See [Nomad Bonding Guide](docs/NOMAD_BONDING_GUIDE.md) for details
+
 ### Advanced Mechanics
 
 - **Procedural Generation**: Ledger-seeded RNG ensures fair, verifiable region generation
 - **NFT Ownership**: Ships stored as Soroban tokens with full transfer/trading support
+- **Nomad Bonding**: Multi-sig cooperative bonds with passive yield delegation — real Web3 social mechanics
 - **Resource Trading**: Collected resources can be exchanged on DEXs integrated with Stellar
 - **Leaderboards**: On-chain tracking of top explorers by region coverage and resource wealth
 - **Achievements**: Milestone tracking for community engagement
@@ -234,14 +244,16 @@ stellar-nebula-nomad/
 ├── src/
 │   ├── lib.rs                    # Main contract entry point
 │   ├── nebula_explorer.rs        # Procedural generation logic
+│   ├── nomad_bonding.rs          # Multi-sig bonding & yield delegation
 │   ├── resource_minter.rs        # Resource NFT minting
 │   └── ship_registry.rs          # Ship NFT management
 ├── tests/
-│   └── integration_tests.rs      # Contract test suite
+│   └── integration_tests.rs      # Contract test suite (33 tests)
 ├── scripts/
 │   ├── deploy.sh                 # Deployment automation
 │   └── test.sh                   # Test runner
 ├── docs/
+│   ├── NOMAD_BONDING_GUIDE.md    # Bonding system guide
 │   └── ABI.md                    # Contract interface specs
 ├── examples/
 │   └── scan_example.rs           # Usage examples
@@ -522,6 +534,7 @@ DEPLOY_TIMEOUT=300
 
 ### Phase 2: Expansion (Q2 2026)
 
+- [x] Nomad Bonding System (multi-sig co-op yield sharing)
 - [ ] Multi-contract coordination
 - [ ] Advanced upgrade system
 - [ ] Leaderboard smart contract
