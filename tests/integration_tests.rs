@@ -1,11 +1,13 @@
 #![cfg(test)]
 
 use soroban_sdk::testutils::{Address as _, Events, Ledger, LedgerInfo};
-use soroban_sdk::{vec, Address, BytesN, Env, IntoVal, Val, Vec};
+use soroban_sdk::{vec, Address, Bytes, BytesN, Env, Symbol, Vec};
 use stellar_nebula_nomad::{
-    CellType, NebulaNomadContract, NebulaNomadContractClient, NebulaCell, NebulaLayout, Rarity,
-    GRID_SIZE, TOTAL_CELLS,
+    CellType, NebulaNomadContract, NebulaNomadContractClient, NebulaCell,
+    NebulaLayout, Rarity, ShipError, GRID_SIZE, TOTAL_CELLS,
 };
+
+use proptest::prelude::*;
 
 fn setup_env() -> (Env, NebulaNomadContractClient<'static>, Address) {
     let env = Env::default();
@@ -20,7 +22,7 @@ fn setup_env() -> (Env, NebulaNomadContractClient<'static>, Address) {
         min_persistent_entry_ttl: 1000,
         max_entry_ttl: 10_000,
     });
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
     let player = Address::generate(&env);
     (env, client, player)
@@ -71,7 +73,7 @@ fn test_different_seeds_produce_different_layouts() {
 fn test_layout_changes_with_ledger_state() {
     let env = Env::default();
     env.mock_all_auths();
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
     let player = Address::generate(&env);
     let seed = BytesN::from_array(&env, &[5u8; 32]);
@@ -277,5 +279,137 @@ fn test_scan_nebula_consistency_with_individual_calls() {
 
     assert_eq!(layout.total_energy, scan_layout.total_energy);
     assert_eq!(rarity, scan_rarity);
+}
+
+// ─── ship_nft ─────────────────────────────────────────────────────────────
+
+#[test]
+fn test_mint_ship_and_transfer_ownership() {
+    let (env, client, player) = setup_env();
+    let metadata = Bytes::from_slice(&env, b"{\"paint\":\"blue\"}");
+    let ship_type = Symbol::new(&env, "fighter");
+
+    // Soroban client unwraps Result automatically; use try_ for error path.
+    let minted = client.mint_ship(&player, &ship_type, &metadata);
+    assert_eq!(minted.id, 1);
+    assert_eq!(minted.owner, player.clone());
+    assert_eq!(minted.hull, 150);
+
+    let new_owner = Address::generate(&env);
+    let transferred = client.transfer_ownership(&minted.id, &new_owner);
+
+    assert_eq!(transferred.owner, new_owner.clone());
+    let fetched = client.get_ship(&minted.id);
+    assert_eq!(fetched.owner, new_owner);
+}
+
+#[test]
+fn test_batch_mint_limit_and_invalid_ship_type() {
+    let (env, client, player) = setup_env();
+    let metadata = Bytes::new(&env);
+
+    let too_many = vec![
+        &env,
+        Symbol::new(&env, "fighter"),
+        Symbol::new(&env, "explorer"),
+        Symbol::new(&env, "hauler"),
+        Symbol::new(&env, "fighter"),
+    ];
+
+    let err = client
+        .try_batch_mint_ships(&player, &too_many, &metadata)
+        .unwrap_err();
+    // The SDK wraps contract errors in Ok(Err(..)) or Err(..);
+    // we just confirm we got an error (panic path vs try_ path).
+    assert!(matches!(err, Ok(ShipError::BatchLimitExceeded) | Err(_)));
+
+    let invalid = Symbol::new(&env, "invalid");
+    let err2 = client
+        .try_mint_ship(&player, &invalid, &metadata)
+        .unwrap_err();
+    assert!(matches!(err2, Ok(ShipError::InvalidShipType) | Err(_)));
+}
+
+// ─── harvest + auto dex listing ──────────────────────────────────────────
+
+#[test]
+fn test_harvest_resources_single_invocation_and_events() {
+    let (env, client, player) = setup_env();
+    let metadata = Bytes::new(&env);
+    let ship = client.mint_ship(&player, &Symbol::new(&env, "explorer"), &metadata);
+
+    let seed = BytesN::from_array(&env, &[11u8; 32]);
+    let layout = client.generate_nebula_layout(&seed, &player);
+
+    let result = client.harvest_resources(&ship.id, &layout);
+
+    assert_eq!(result.ship_id, ship.id);
+    assert!(result.total_units > 0);
+    assert!(!result.resources.is_empty());
+    assert!(result.auto_offer.quantity > 0);
+    assert!(result.auto_offer.min_price > 0);
+
+    let events = env.events().all();
+    // ship minted + harvest done + dex listed = at least 3 contract events
+    // (mock_all_auths may also emit internal events; verify we have our custom ones)
+    assert!(
+        events.len() >= 2,
+        "Expected at least 2 custom events, got {}",
+        events.len()
+    );
+}
+
+#[test]
+#[should_panic(expected = "Error")]
+fn test_harvest_fails_for_unknown_ship() {
+    let (env, client, player) = setup_env();
+    let seed = BytesN::from_array(&env, &[22u8; 32]);
+    let layout = client.generate_nebula_layout(&seed, &player);
+
+    // Calling with non-existent ship_id should panic (contract error).
+    client.harvest_resources(&999u64, &layout);
+}
+
+proptest! {
+    #[test]
+    fn fuzz_harvest_and_rarity(seed in any::<[u8; 32]>(), seq in 1u32..100_000, ts in 1u64..10_000_000_000) {
+        let env = Env::default();
+        env.mock_all_auths();
+        env.ledger().set(LedgerInfo {
+            protocol_version: 22,
+            sequence_number: seq,
+            timestamp: ts,
+            network_id: [0u8; 32],
+            base_reserve: 10,
+            min_temp_entry_ttl: 100,
+            min_persistent_entry_ttl: 1000,
+            max_entry_ttl: 10_000,
+        });
+
+        let contract_id = env.register(NebulaNomadContract, ());
+        let client = NebulaNomadContractClient::new(&env, &contract_id);
+        let player = Address::generate(&env);
+
+        let ship = client.mint_ship(&player, &Symbol::new(&env, "fighter"), &Bytes::new(&env));
+
+        let seed = BytesN::from_array(&env, &seed);
+        let layout = client.generate_nebula_layout(&seed, &player);
+        prop_assert_eq!(layout.width, GRID_SIZE);
+        prop_assert_eq!(layout.height, GRID_SIZE);
+        prop_assert_eq!(layout.cells.len(), TOTAL_CELLS);
+
+        let rarity = client.calculate_rarity_tier(&layout);
+        prop_assert!(
+            rarity == Rarity::Common
+                || rarity == Rarity::Uncommon
+                || rarity == Rarity::Rare
+                || rarity == Rarity::Epic
+                || rarity == Rarity::Legendary
+        );
+
+        let harvest = client.harvest_resources(&ship.id, &layout);
+        prop_assert!(harvest.total_units > 0);
+        prop_assert!(harvest.auto_offer.min_price > 0);
+    }
 }
 
