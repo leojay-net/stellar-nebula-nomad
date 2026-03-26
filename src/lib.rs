@@ -16,6 +16,11 @@ mod difficulty_scaler;
 mod randomness_oracle;
 mod treasure_vault;
 
+mod yield_farming;
+mod governance;
+mod theme_customizer;
+mod indexer_callbacks;
+
 pub use nebula_explorer::{
     calculate_rarity_tier, compute_layout_hash, generate_nebula_layout, CellType, NebulaCell,
     NebulaLayout, Rarity, GRID_SIZE, TOTAL_CELLS,
@@ -137,7 +142,6 @@ impl NebulaNomadContract {
         resource_minter::auto_list_on_dex(&env, &resource, min_price)
     }
 
-<<<<<<< feat/game-mechanics
     // ─── DEX Integration (Issue #9) ──────────────────────────────────────
 
     /// Harvest resources and immediately list on DEX.
@@ -217,7 +221,8 @@ impl NebulaNomadContract {
     /// Get the current entropy pool.
     pub fn get_entropy_pool(env: Env) -> Vec<BytesN<32>> {
         randomness_oracle::get_entropy_pool(&env)
-=======
+    }
+
     // ─── Player Profile ───────────────────────────────────────────────────────
 
     /// Create a new on-chain player profile. Returns the assigned profile ID.
@@ -334,6 +339,89 @@ impl NebulaNomadContract {
     /// Retrieve a referral record by the new nomad's address.
     pub fn get_referral(env: Env, new_nomad: Address) -> Result<Referral, ReferralError> {
         referral_system::get_referral(&env, new_nomad)
->>>>>>> main
+    }
+
+    // ─── Yield Farming (Issue #36) ───────────────────────────────────────────
+
+    /// Stake resources for boosted yields.
+    pub fn deposit_to_pool(
+        env: Env,
+        owner: Address,
+        amount: i128,
+        lock_period: u32,
+    ) -> Result<u64, yield_farming::FarmError> {
+        yield_farming::deposit_to_pool(env, owner, amount, lock_period)
+    }
+
+    /// Claim accumulated cosmic rewards.
+    pub fn harvest_farm_rewards(
+        env: Env,
+        owner: Address,
+        pool_id: u64,
+    ) -> Result<i128, yield_farming::FarmError> {
+        yield_farming::harvest_farm_rewards(env, owner, pool_id)
+    }
+
+    // ─── Community Governance (Issue #38) ────────────────────────────────────
+
+    /// Submit a proposed config change.
+    pub fn create_proposal(
+        env: Env,
+        creator: Address,
+        description: String,
+        param_change: BytesN<128>,
+    ) -> Result<u64, governance::GovError> {
+        governance::create_proposal(env, creator, description, param_change)
+    }
+
+    /// Record a vote weighted by essence held.
+    pub fn cast_vote(
+        env: Env,
+        voter: Address,
+        proposal_id: u64,
+        support: bool,
+        weight: i128,
+    ) -> Result<(), governance::GovError> {
+        governance::cast_vote(env, voter, proposal_id, support, weight)
+    }
+
+    // ─── Theme Customizer (Issue #37) ────────────────────────────────────────
+
+    /// Set ship color palette and particle style.
+    pub fn apply_theme(
+        env: Env,
+        owner: Address,
+        ship_id: u64,
+        theme_id: Symbol,
+    ) -> Result<(), theme_customizer::ThemeError> {
+        theme_customizer::apply_theme(env, owner, ship_id, theme_id)
+    }
+
+    /// Returns theme preview metadata.
+    pub fn generate_theme_preview(
+        env: Env,
+        theme_id: Symbol,
+    ) -> Result<theme_customizer::ThemePreview, theme_customizer::ThemeError> {
+        theme_customizer::generate_theme_preview(env, theme_id)
+    }
+
+    // ─── Indexer Callbacks (Issue #35) ───────────────────────────────────────
+
+    /// Subscribes an external service to events.
+    pub fn register_indexer_callback(
+        env: Env,
+        caller: Address,
+        callback_id: Symbol,
+    ) -> Result<(), indexer_callbacks::IndexerError> {
+        indexer_callbacks::register_indexer_callback(env, caller, callback_id)
+    }
+
+    /// Broadcasts rich data for external dashboards.
+    pub fn trigger_indexer_event(
+        env: Env,
+        event_type: Symbol,
+        payload: BytesN<256>,
+    ) -> Result<(), indexer_callbacks::IndexerError> {
+        indexer_callbacks::trigger_indexer_event(env, event_type, payload)
     }
 }
