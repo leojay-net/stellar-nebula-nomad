@@ -11,8 +11,11 @@ mod session_manager;
 mod ship_nft;
 mod ship_registry;
 
+mod batch_processor;
 mod dex_integration;
 mod difficulty_scaler;
+mod emergency_controls;
+mod metadata_resolver;
 mod randomness_oracle;
 mod treasure_vault;
 
@@ -36,10 +39,22 @@ pub use player_profile::{PlayerProfile, ProfileError, ProgressUpdate};
 pub use session_manager::{Session, SessionError};
 pub use ship_registry::Ship;
 
+pub use batch_processor::{
+    clear_batch, execute_batch, get_player_batch, queue_batch_operation, BatchError, BatchOp,
+    BatchOpType, BatchResult, MAX_BATCH_SIZE,
+};
 pub use dex_integration::{cancel_listing, harvest_and_list};
 pub use difficulty_scaler::{
     apply_scaling_to_layout, calculate_difficulty, DifficultyError, DifficultyResult,
     RarityWeights, MAX_LEVEL,
+};
+pub use emergency_controls::{
+    EmergencyError, execute_unpause, get_admins, initialize_admins, is_paused,
+    pause_contract, require_not_paused, schedule_unpause, emergency_withdraw, UNPAUSE_DELAY,
+};
+pub use metadata_resolver::{
+    batch_resolve_metadata, get_current_gateway, resolve_metadata, set_gateway, set_metadata_uri,
+    MetadataError, TokenMetadata, MAX_METADATA_BATCH,
 };
 pub use randomness_oracle::{
     get_entropy_pool, request_random_seed, verify_and_fallback, OracleError,
@@ -423,5 +438,91 @@ impl NebulaNomadContract {
         payload: BytesN<256>,
     ) -> Result<(), indexer_callbacks::IndexerError> {
         indexer_callbacks::trigger_indexer_event(env, event_type, payload)
+    }
+
+    // ─── Emergency Controls (Issue #29) ──────────────────────────────────
+
+    /// Initialize the multi-sig admin set at deployment. One-time call.
+    pub fn initialize_admins(env: Env, admins: Vec<Address>) -> Result<(), EmergencyError> {
+        emergency_controls::initialize_admins(&env, admins)
+    }
+
+    /// Instantly freeze all mutating contract functions. Admin-only.
+    pub fn pause_contract(env: Env, admin: Address) -> Result<(), EmergencyError> {
+        emergency_controls::pause_contract(&env, &admin)
+    }
+
+    /// Schedule a time-delayed unpause. Admin-only.
+    pub fn schedule_unpause(env: Env, admin: Address) -> Result<u64, EmergencyError> {
+        emergency_controls::schedule_unpause(&env, &admin)
+    }
+
+    /// Execute the unpause after the delay has elapsed. Admin-only.
+    pub fn execute_unpause(env: Env, admin: Address) -> Result<(), EmergencyError> {
+        emergency_controls::execute_unpause(&env, &admin)
+    }
+
+    /// Admin-only emergency recovery of stuck resources.
+    pub fn emergency_withdraw(env: Env, admin: Address, resource: Symbol) -> Result<(), EmergencyError> {
+        emergency_controls::emergency_withdraw(&env, &admin, resource)
+    }
+
+    /// Returns true if the contract is currently paused.
+    pub fn is_paused(env: Env) -> bool {
+        emergency_controls::is_paused(&env)
+    }
+
+    /// Returns the current admin list.
+    pub fn get_admins(env: Env) -> Vec<Address> {
+        emergency_controls::get_admins(&env)
+    }
+
+    // ─── Metadata URI Resolver (Issue #30) ───────────────────────────────
+
+    /// Set the IPFS CID for a token. Immutable after first set.
+    pub fn set_metadata_uri(env: Env, caller: Address, token_id: u64, cid: Bytes) -> Result<(), MetadataError> {
+        metadata_resolver::set_metadata_uri(&env, &caller, token_id, cid)
+    }
+
+    /// Resolve full metadata for a token using the configured gateway.
+    pub fn resolve_metadata(env: Env, token_id: u64) -> Result<TokenMetadata, MetadataError> {
+        metadata_resolver::resolve_metadata(&env, token_id)
+    }
+
+    /// Batch resolve metadata for up to 10 tokens.
+    pub fn batch_resolve_metadata(env: Env, token_ids: Vec<u64>) -> Result<Vec<TokenMetadata>, MetadataError> {
+        metadata_resolver::batch_resolve_metadata(&env, token_ids)
+    }
+
+    /// Update the IPFS gateway prefix. Admin-only.
+    pub fn set_gateway(env: Env, admin: Address, gateway: Bytes) {
+        metadata_resolver::set_gateway(&env, &admin, gateway)
+    }
+
+    /// Return the currently configured IPFS gateway prefix.
+    pub fn get_current_gateway(env: Env) -> Bytes {
+        metadata_resolver::get_current_gateway(&env)
+    }
+
+    // ─── Batch Ship Operations (Issue #31) ───────────────────────────────
+
+    /// Stage up to 8 ship operations into the player's batch queue.
+    pub fn queue_batch_operation(env: Env, player: Address, operations: Vec<BatchOp>) -> Result<u32, BatchError> {
+        batch_processor::queue_batch_operation(&env, &player, operations)
+    }
+
+    /// Execute all queued operations atomically for the provided ship IDs.
+    pub fn execute_batch(env: Env, player: Address, ship_ids: Vec<u64>) -> Result<BatchResult, BatchError> {
+        batch_processor::execute_batch(&env, &player, ship_ids)
+    }
+
+    /// Return the player's currently queued batch.
+    pub fn get_player_batch(env: Env, player: Address) -> Option<Vec<BatchOp>> {
+        batch_processor::get_player_batch(&env, &player)
+    }
+
+    /// Clear the player's pending batch queue.
+    pub fn clear_batch(env: Env, player: Address) {
+        batch_processor::clear_batch(&env, &player)
     }
 }
