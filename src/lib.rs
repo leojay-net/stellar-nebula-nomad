@@ -24,6 +24,11 @@ mod governance;
 mod theme_customizer;
 mod indexer_callbacks;
 
+mod energy_manager;
+mod environment_simulator;
+mod mission_generator;
+mod escrow_trader;
+
 pub use nebula_explorer::{
     calculate_rarity_tier, compute_layout_hash, generate_nebula_layout, CellType, NebulaCell,
     NebulaLayout, Rarity, GRID_SIZE, TOTAL_CELLS,
@@ -62,6 +67,22 @@ pub use randomness_oracle::{
 pub use treasure_vault::{
     claim_treasure, deposit_treasure, get_vault, TreasureVault, VaultError,
     DEFAULT_MIN_LOCK_DURATION,
+};
+
+pub use energy_manager::{
+    consume_energy, get_energy_balance, recharge_energy, EnergyBalance, EnergyError, RechargeResult,
+};
+pub use environment_simulator::{
+    apply_environmental_modifier, get_nebula_condition, simulate_conditions, EnvironmentCondition,
+    EnvironmentError, ModifierResult,
+};
+pub use mission_generator::{
+    complete_mission, generate_daily_mission, get_player_missions, update_mission_progress,
+    Mission, MissionError, MissionReward,
+};
+pub use escrow_trader::{
+    cancel_escrow, complete_escrow, confirm_escrow, get_escrow, initiate_escrow, Escrow,
+    EscrowError, EscrowResult, TradeAsset,
 };
 
 #[contract]
@@ -438,6 +459,139 @@ impl NebulaNomadContract {
         payload: BytesN<256>,
     ) -> Result<(), indexer_callbacks::IndexerError> {
         indexer_callbacks::trigger_indexer_event(env, event_type, payload)
+    }
+
+    // ─── Energy Management ────────────────────────────────────────────────
+
+    /// Consume energy for ship operations.
+    pub fn consume_energy(
+        env: Env,
+        ship_id: u64,
+        amount: u32,
+    ) -> Result<u32, energy_manager::EnergyError> {
+        energy_manager::consume_energy(&env, ship_id, amount)
+    }
+
+    /// Recharge ship energy using resources.
+    pub fn recharge_energy(
+        env: Env,
+        ship_id: u64,
+        resource_amount: i128,
+    ) -> Result<energy_manager::RechargeResult, energy_manager::EnergyError> {
+        energy_manager::recharge_energy(&env, ship_id, resource_amount)
+    }
+
+    /// Get ship energy balance.
+    pub fn get_energy_balance(
+        env: Env,
+        ship_id: u64,
+    ) -> Result<energy_manager::EnergyBalance, energy_manager::EnergyError> {
+        energy_manager::get_energy_balance(&env, ship_id)
+    }
+
+    // ─── Environmental Simulation ─────────────────────────────────────────
+
+    /// Simulate environmental conditions for a nebula.
+    pub fn simulate_conditions(
+        env: Env,
+        nebula_id: u64,
+    ) -> Result<environment_simulator::EnvironmentCondition, environment_simulator::EnvironmentError> {
+        environment_simulator::simulate_conditions(&env, nebula_id)
+    }
+
+    /// Apply environmental modifiers to harvest yields.
+    pub fn apply_environmental_modifier(
+        env: Env,
+        ship_id: u64,
+        nebula_id: u64,
+        base_yield: i32,
+    ) -> Result<environment_simulator::ModifierResult, environment_simulator::EnvironmentError> {
+        environment_simulator::apply_environmental_modifier(&env, ship_id, nebula_id, base_yield)
+    }
+
+    /// Get current nebula environmental condition.
+    pub fn get_nebula_condition(
+        env: Env,
+        nebula_id: u64,
+    ) -> Option<environment_simulator::EnvironmentCondition> {
+        environment_simulator::get_nebula_condition(&env, nebula_id)
+    }
+
+    // ─── Mission System ───────────────────────────────────────────────────
+
+    /// Generate a new daily mission for player.
+    pub fn generate_daily_mission(
+        env: Env,
+        player: Address,
+    ) -> Result<mission_generator::Mission, mission_generator::MissionError> {
+        mission_generator::generate_daily_mission(&env, player)
+    }
+
+    /// Complete a mission and claim rewards.
+    pub fn complete_mission(
+        env: Env,
+        player: Address,
+        mission_id: u64,
+    ) -> Result<mission_generator::MissionReward, mission_generator::MissionError> {
+        mission_generator::complete_mission(&env, player, mission_id)
+    }
+
+    /// Update mission progress.
+    pub fn update_mission_progress(
+        env: Env,
+        mission_id: u64,
+        progress: u32,
+    ) -> Result<mission_generator::Mission, mission_generator::MissionError> {
+        mission_generator::update_mission_progress(&env, mission_id, progress)
+    }
+
+    /// Get all missions for a player.
+    pub fn get_player_missions(env: Env, player: Address) -> Vec<mission_generator::Mission> {
+        mission_generator::get_player_missions(&env, player)
+    }
+
+    // ─── Escrow Trading ───────────────────────────────────────────────────
+
+    /// Initiate a peer-to-peer escrow trade.
+    pub fn initiate_escrow(
+        env: Env,
+        trader_a: Address,
+        trader_b: Address,
+        assets_a: Vec<escrow_trader::TradeAsset>,
+        assets_b: Vec<escrow_trader::TradeAsset>,
+    ) -> Result<escrow_trader::Escrow, escrow_trader::EscrowError> {
+        escrow_trader::initiate_escrow(&env, trader_a, trader_b, assets_a, assets_b)
+    }
+
+    /// Confirm participation in an escrow trade.
+    pub fn confirm_escrow(
+        env: Env,
+        escrow_id: u64,
+        trader: Address,
+    ) -> Result<escrow_trader::Escrow, escrow_trader::EscrowError> {
+        escrow_trader::confirm_escrow(&env, escrow_id, trader)
+    }
+
+    /// Complete an escrow trade atomically.
+    pub fn complete_escrow(
+        env: Env,
+        escrow_id: u64,
+    ) -> Result<escrow_trader::EscrowResult, escrow_trader::EscrowError> {
+        escrow_trader::complete_escrow(&env, escrow_id)
+    }
+
+    /// Cancel an escrow trade.
+    pub fn cancel_escrow(
+        env: Env,
+        escrow_id: u64,
+        trader: Address,
+    ) -> Result<(), escrow_trader::EscrowError> {
+        escrow_trader::cancel_escrow(&env, escrow_id, trader)
+    }
+
+    /// Get escrow details by ID.
+    pub fn get_escrow(env: Env, escrow_id: u64) -> Option<escrow_trader::Escrow> {
+        escrow_trader::get_escrow(&env, escrow_id)
     }
 
     // ─── Emergency Controls (Issue #29) ──────────────────────────────────
