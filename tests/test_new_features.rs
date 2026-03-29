@@ -6,7 +6,8 @@ use stellar_nebula_nomad::{NebulaNomadContract, NebulaNomadContractClient};
 #[test]
 fn test_yield_farming_flow() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    env.mock_all_auths();
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
 
     let user = Address::generate(&env);
@@ -33,7 +34,8 @@ fn test_yield_farming_flow() {
 #[test]
 fn test_governance_voting() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    env.mock_all_auths();
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
 
     let creator = Address::generate(&env);
@@ -52,7 +54,8 @@ fn test_governance_voting() {
 #[test]
 fn test_theme_customizer() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    env.mock_all_auths();
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
 
     let owner = Address::generate(&env);
@@ -68,7 +71,8 @@ fn test_theme_customizer() {
 #[test]
 fn test_indexer_callbacks() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    env.mock_all_auths();
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
@@ -85,7 +89,8 @@ fn test_indexer_callbacks() {
 #[test]
 fn test_contract_versioning_flow() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    env.mock_all_auths();
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
 
@@ -100,7 +105,8 @@ fn test_contract_versioning_flow() {
 #[test]
 fn test_gas_recovery_flow() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    env.mock_all_auths();
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
     let user = Address::generate(&env);
@@ -123,7 +129,8 @@ fn test_gas_recovery_flow() {
 #[test]
 fn test_bounty_board_lifecycle() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    env.mock_all_auths();
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
     let poster = Address::generate(&env);
@@ -142,7 +149,8 @@ fn test_bounty_board_lifecycle() {
 #[test]
 fn test_recycling_crafting_loop() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    env.mock_all_auths();
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
     let user = Address::generate(&env);
 
@@ -164,7 +172,8 @@ fn test_recycling_crafting_loop() {
 #[test]
 fn test_batch_sizes() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, NebulaNomadContract);
+    env.mock_all_auths();
+    let contract_id = env.register(NebulaNomadContract, ());
     let client = NebulaNomadContractClient::new(&env, &contract_id);
     let _admin = Address::generate(&env);
     let _user = Address::generate(&env);
